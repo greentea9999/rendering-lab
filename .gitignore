@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+webgpu-ts/node_modules/
+
+# build outputs
+dist/
+docs/.vitepress/dist/
+webgpu-ts/dist/
+
+# caches
+.vite/
+webgpu-ts/.vite/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# env files
+.env
+.env.*
