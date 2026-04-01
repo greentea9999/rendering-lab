@@ -34,7 +34,13 @@ function setStatus(message: string)
   statusEl.textContent = message;
 }
 
-async function initWebGPU()
+type WebGPUState = {
+  device: GPUDevice;
+  context: GPUCanvasContext;
+  format: GPUTextureFormat;
+};
+
+async function initWebGPU() : Promise<WebGPUState>
 {
   if (!navigator.gpu) 
   {
@@ -63,6 +69,34 @@ async function initWebGPU()
     alphaMode: "opaque",
   });
 
+  setStatus("WebGPU initialized.");
+  
+  return { device, context, format};
+}
+
+function render(state: WebGPUState, pipeline: GPURenderPipeline, vertexBuffer: GPUBuffer) 
+{
+  const commandEncoder = state.device.createCommandEncoder();
+  const textureView = state.context.getCurrentTexture().createView();
+  const renderPass = commandEncoder.beginRenderPass({
+    colorAttachments: [
+      {
+        view: textureView,
+        clearValue: { r: 0.08, g: 0.09, b: 0.12, a: 1.0 },
+        loadOp: "clear",
+        storeOp: "store",
+      },
+    ],
+  });
+  renderPass.setPipeline(pipeline);
+  renderPass.setVertexBuffer(0, vertexBuffer);
+  renderPass.draw(3);
+  renderPass.end();
+  state.device.queue.submit([commandEncoder.finish()]);
+}
+
+function createTriangleGeometry(state: WebGPUState): GPUBuffer
+{
   // vertex = [pos.x, pos.y, color.r, color.g, color.b]
   const vertices = new Float32Array([
     // top
@@ -73,19 +107,24 @@ async function initWebGPU()
      0.6, -0.6, 0.0, 0.0, 1.0,
   ]);
 
-  const vertexBuffer = device.createBuffer({
+  const vertexBuffer = state.device.createBuffer({
     size: vertices.byteLength,
     usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
   });
 
-  device.queue.writeBuffer(vertexBuffer, 0, vertices);
+  state.device.queue.writeBuffer(vertexBuffer, 0, vertices);
 
-  const shaderModule = device.createShaderModule({
+  return vertexBuffer;
+}
+
+function createTrianglePipeline(state: WebGPUState): GPURenderPipeline 
+{
+    const shaderModule = state.device.createShaderModule({
     label: "Triangle Shader",
     code: triangleShaderCode,
   });
 
-  const pipeline = device.createRenderPipeline({
+  const pipeline = state.device.createRenderPipeline({
     label: "Triangle Pipeline",
     layout: "auto",
     vertex: {
@@ -114,7 +153,7 @@ async function initWebGPU()
       entryPoint: "fs_main",
       targets: [
         {
-          format,
+          format: state.format,
         },
       ],
     },
@@ -123,36 +162,30 @@ async function initWebGPU()
     },
   });
 
-  function render() 
-  {
-    const commandEncoder = device.createCommandEncoder();
-
-    const textureView = context.getCurrentTexture().createView();
-
-    const renderPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: textureView,
-          clearValue: { r: 0.08, g: 0.09, b: 0.12, a: 1.0 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-      ],
-    });
-
-    renderPass.setPipeline(pipeline);
-    renderPass.setVertexBuffer(0, vertexBuffer);
-    renderPass.draw(3);
-    renderPass.end();
-
-    device.queue.submit([commandEncoder.finish()]);
-  }
-
-  render();
-  setStatus("Triangle rendered successfully.");
+  return pipeline;
 }
 
-initWebGPU().catch((error) => {
-  console.error(error);
-  setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`);
-});
+function startRenderLoop(state: WebGPUState, pipeline: GPURenderPipeline, vertexBuffer: GPUBuffer) {
+  function frame() {
+    render(state, pipeline, vertexBuffer);
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+}
+
+async function main()
+{
+  try {
+    const state  = await initWebGPU();
+    const pipeline = createTrianglePipeline(state);
+    const geometry = createTriangleGeometry(state); 
+    startRenderLoop(state, pipeline, geometry);
+  }
+  catch(error) {
+    console.error(error);
+    setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+main();

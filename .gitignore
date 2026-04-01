@@ -4,12 +4,13 @@ webgpu-ts/node_modules/
 
 # build outputs
 dist/
-docs/.vitepress/dist/
 webgpu-ts/dist/
+docs/.vitepress/dist/
 
 # caches
 .vite/
 webgpu-ts/.vite/
+docs/.vitepress/cache/
 
 # logs
 npm-debug.log*
