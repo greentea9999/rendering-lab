@@ -74,7 +74,7 @@ async function initWebGPU() : Promise<WebGPUState>
   return { device, context, format};
 }
 
-function render(state: WebGPUState, pipeline: GPURenderPipeline, vertexBuffer: GPUBuffer) 
+function render(state: WebGPUState, pipeline: GPURenderPipeline, vertexBuffer: GPUBuffer, uniformBuffer: GPUBuffer, bindGroup: GPUBindGroup) 
 {
   const commandEncoder = state.device.createCommandEncoder();
   const textureView = state.context.getCurrentTexture().createView();
@@ -89,6 +89,7 @@ function render(state: WebGPUState, pipeline: GPURenderPipeline, vertexBuffer: G
     ],
   });
   renderPass.setPipeline(pipeline);
+  renderPass.setBindGroup(0, bindGroup);
   renderPass.setVertexBuffer(0, vertexBuffer);
   renderPass.draw(3);
   renderPass.end();
@@ -100,11 +101,11 @@ function createTriangleGeometry(state: WebGPUState): GPUBuffer
   // vertex = [pos.x, pos.y, color.r, color.g, color.b]
   const vertices = new Float32Array([
     // top
-     0.0,  0.6, 1.0, 0.0, 0.0,
+     0.0,  0.8, 1.0, 0.0, 0.0,
     // left
-    -0.6, -0.6, 0.0, 1.0, 0.0,
+    -0.6, -0.4, 0.0, 1.0, 0.0,
     // right
-     0.6, -0.6, 0.0, 0.0, 1.0,
+     0.6, -0.4, 0.0, 0.0, 1.0,
   ]);
 
   const vertexBuffer = state.device.createBuffer({
@@ -165,9 +166,61 @@ function createTrianglePipeline(state: WebGPUState): GPURenderPipeline
   return pipeline;
 }
 
-function startRenderLoop(state: WebGPUState, pipeline: GPURenderPipeline, vertexBuffer: GPUBuffer) {
-  function frame() {
-    render(state, pipeline, vertexBuffer);
+function createRotationUniformBuffer(state: WebGPUState): GPUBuffer
+{
+  const angleBuffer = state.device.createBuffer({
+    size: 4 * 4,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  return angleBuffer;
+}
+
+let angle = 0;
+
+function updateRotationUniform(state: WebGPUState, buffer: GPUBuffer, deltaTime)
+{
+  angle += deltaTime * 0.001;
+
+  const angleDatas = new Float32Array([
+    Math.cos(angle), -Math.sin(angle), Math.sin(angle), Math.cos(angle)
+  ]);
+
+  state.device.queue.writeBuffer(buffer, 0, angleDatas);
+}
+
+function createBindGroup(state: WebGPUState, pipeline: GPURenderPipeline, uniformBuffer: GPUBuffer): GPUBindGroup
+{
+  const bindGroup  = state.device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: uniformBuffer
+          },
+        },
+      ],
+    });
+
+    return bindGroup;
+}
+
+function startRenderLoop(state: WebGPUState, pipeline: GPURenderPipeline, vertexBuffer: GPUBuffer, uniformBuffer: GPUBuffer, bindGroup: GPUBindGroup) {
+   let lastStamp: DOMHighResTimeStamp | null = null;
+
+  function frame(timestamp: DOMHighResTimeStamp) {
+    let deltaTime = 0;
+
+    if (lastStamp !== null) {
+      deltaTime = timestamp - lastStamp;
+    }
+
+    lastStamp = timestamp;
+
+    updateRotationUniform(state, uniformBuffer, deltaTime);
+
+    render(state, pipeline, vertexBuffer, uniformBuffer, bindGroup);
     requestAnimationFrame(frame);
   }
 
@@ -180,7 +233,11 @@ async function main()
     const state  = await initWebGPU();
     const pipeline = createTrianglePipeline(state);
     const geometry = createTriangleGeometry(state); 
-    startRenderLoop(state, pipeline, geometry);
+
+    const angleUniformBuffer = createRotationUniformBuffer(state);
+    const bindGroup = createBindGroup(state, pipeline, angleUniformBuffer);
+
+    startRenderLoop(state, pipeline, geometry, angleUniformBuffer, bindGroup);
   }
   catch(error) {
     console.error(error);

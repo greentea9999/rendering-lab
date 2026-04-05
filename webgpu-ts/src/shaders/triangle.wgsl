@@ -1,3 +1,9 @@
+struct Uniforms{
+  angleVector : vec4f,
+}
+
+@binding(0) @group(0) var<uniform> uniforms : Uniforms;
+
 struct VertexOut {
   @builtin(position) position : vec4f,
   @location(0) color : vec3f,
@@ -9,7 +15,11 @@ fn vs_main(
   @location(1) color : vec3f
 ) -> VertexOut {
   var out : VertexOut;
-  out.position = vec4f(position, 0.0, 1.0);
+
+  let xPos = position.x * uniforms.angleVector.x + position.y * uniforms.angleVector.z;
+  let yPos = position.x * uniforms.angleVector.y + position.y * uniforms.angleVector.w;
+
+  out.position = vec4f(xPos, yPos, 0.0, 1.0);
   out.color = color;
   return out;
 }
