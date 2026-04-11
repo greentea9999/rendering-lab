@@ -14,7 +14,7 @@ hero:
       link: /posts/
     - theme: alt
       text: GitHub 저장소
-      link: https://github.com/여기에-본인아이디/rendering-lab
+      link: https://github.com/greentea9999/rendering-lab
 
 features:
   - title: 무엇을 만드는가
@@ -53,13 +53,12 @@ features:
 - 버퍼 구조화
 - 카메라, 유니폼, 렌더링 구조 개선
 
-## 글 읽는 순서
+## 최신 기록
 
-1. 환경 구성
-2. WebGPU 초기화
-3. 첫 출력 확인
-4. 셰이더 정리
-5. 버퍼와 파이프라인 구조화
+### 회전하는 삼각형 출력하기
+WebGPU 초기화부터 파이프라인, 버퍼, 바인드 그룹 생성, `requestAnimationFrame` 기반 렌더 루프까지 정리했습니다.
+
+- [글 보러가기](/posts/rotating-triangle)
 
 ## 바로 가기
 
