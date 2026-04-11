@@ -21,13 +21,16 @@ app.innerHTML = `
   </div>
 `;
 
-const statusEl = document.querySelector<HTMLDivElement>("#status");
-const canvas = document.querySelector<HTMLCanvasElement>("#gpu-canvas");
+const statusElMaybe = document.querySelector<HTMLDivElement>("#status");
+const canvasMaybe = document.querySelector<HTMLCanvasElement>("#gpu-canvas");
 
-if (!statusEl || !canvas)
+if (!statusElMaybe || !canvasMaybe) 
 {
   throw new Error("Required DOM elements not found.");
 }
+
+const statusEl = statusElMaybe;
+const canvas = canvasMaybe;
 
 function setStatus(message: string)
 {
@@ -55,7 +58,7 @@ async function initWebGPU() : Promise<WebGPUState>
 
   const device = await adapter.requestDevice();
 
-  const context = canvas.getContext("webgpu");
+  const context = canvas.getContext("webgpu") as GPUCanvasContext | null;
   if (!context) 
   {
     throw new Error("Failed to get WebGPU canvas context.");
@@ -74,7 +77,7 @@ async function initWebGPU() : Promise<WebGPUState>
   return { device, context, format};
 }
 
-function render(state: WebGPUState, pipeline: GPURenderPipeline, vertexBuffer: GPUBuffer, uniformBuffer: GPUBuffer, bindGroup: GPUBindGroup) 
+function render(state: WebGPUState, pipeline: GPURenderPipeline, vertexBuffer: GPUBuffer, bindGroup: GPUBindGroup) 
 {
   const commandEncoder = state.device.createCommandEncoder();
   const textureView = state.context.getCurrentTexture().createView();
@@ -125,9 +128,23 @@ function createTrianglePipeline(state: WebGPUState): GPURenderPipeline
     code: triangleShaderCode,
   });
 
+    const bindGroupLayout = state.device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: "uniform" },
+      },
+    ],
+  });
+
+  const pipelineLayout = state.device.createPipelineLayout({
+    bindGroupLayouts: [bindGroupLayout], // group(0)
+  });
+
   const pipeline = state.device.createRenderPipeline({
     label: "Triangle Pipeline",
-    layout: "auto",
+    layout: pipelineLayout,
     vertex: {
       module: shaderModule,
       entryPoint: "vs_main",
@@ -178,7 +195,7 @@ function createRotationUniformBuffer(state: WebGPUState): GPUBuffer
 
 let angle = 0;
 
-function updateRotationUniform(state: WebGPUState, buffer: GPUBuffer, deltaTime)
+function updateRotationUniform(state: WebGPUState, buffer: GPUBuffer, deltaTime: number)
 {
   angle += deltaTime * 0.001;
 
@@ -189,10 +206,22 @@ function updateRotationUniform(state: WebGPUState, buffer: GPUBuffer, deltaTime)
   state.device.queue.writeBuffer(buffer, 0, angleDatas);
 }
 
-function createBindGroup(state: WebGPUState, pipeline: GPURenderPipeline, uniformBuffer: GPUBuffer): GPUBindGroup
+function createBindGroup(state: WebGPUState, uniformBuffer: GPUBuffer): GPUBindGroup
 {
+  const bindGroupLayout = state.device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: {
+          type: "uniform",
+        },
+      },
+    ],
+  });
+
   const bindGroup  = state.device.createBindGroup({
-      layout: pipeline.getBindGroupLayout(0),
+      layout: bindGroupLayout,
       entries: [
         {
           binding: 0,
@@ -220,7 +249,7 @@ function startRenderLoop(state: WebGPUState, pipeline: GPURenderPipeline, vertex
 
     updateRotationUniform(state, uniformBuffer, deltaTime);
 
-    render(state, pipeline, vertexBuffer, uniformBuffer, bindGroup);
+    render(state, pipeline, vertexBuffer, bindGroup);
     requestAnimationFrame(frame);
   }
 
@@ -235,7 +264,7 @@ async function main()
     const geometry = createTriangleGeometry(state); 
 
     const angleUniformBuffer = createRotationUniformBuffer(state);
-    const bindGroup = createBindGroup(state, pipeline, angleUniformBuffer);
+    const bindGroup = createBindGroup(state, angleUniformBuffer);
 
     startRenderLoop(state, pipeline, geometry, angleUniformBuffer, bindGroup);
   }
